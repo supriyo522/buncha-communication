@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+
+  mongodb:
+    image: mongo:6
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+
+  task-router:
+    build: ./task-router-service
+    container_name: task-router
+    depends_on:
+      - mongodb
+      - rabbitmq
+    environment:
+      MONGO_HOST: mongodb
+      RABBITMQ_HOST: rabbitmq
+    ports:
+      - "3000:3000"
+  delivery-email:
+    build: ./delivery-email-service
+    container_name: delivery-email
+    depends_on:
+      - mongodb
+      - rabbitmq
+    environment:
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: user
+      RABBITMQ_PASS: password
+
+  delivery-sms:
+    build: ./delivery-sms-service
+    container_name: delivery-sms
+    depends_on:
+      - mongodb
+      - rabbitmq
+    environment:
+      MONGO_HOST: mongodb
+      RABBITMQ_HOST: rabbitmq
+
+  delivery-whatsapp:
+    build: ./delivery-whatsapp
+    container_name: delivery-whatsapp
+    depends_on:
+      - mongodb
+      - rabbitmq
+    environment:
+      MONGO_HOST: mongodb
+      RABBITMQ_HOST: rabbitmq
+
+  logging-service:
+    build: ./logging-service
+    container_name: logging-service
+    depends_on:
+      - rabbitmq
+      - elasticsearch
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      ELASTIC_HOST: elasticsearch
+
+volumes:
+  mongo_data:
